@@ -152,7 +152,7 @@ h2{font-size:.8rem;font-weight:600;color:var(--muted);margin:0 0 8px}
       <button class="btn run" id="run">▶ Run</button>
       <label class="spd">Speed <input type="range" id="spd" min="300" max="2500" value="1100" style="direction:rtl"></label>
       <button class="btn" id="clr">Clear all</button>
-      <button class="btn" id="dl" hidden>⬇ Download SVG</button>
+      <button class="btn" id="dl">⬇ Download SVG</button>
       <span class="zoom"><button class="btn sm" id="zo" title="Zoom out">−</button><button class="btn sm" id="zr" title="Reset zoom">100%</button><button class="btn sm" id="zi" title="Zoom in">+</button><button class="btn sm" id="zf" title="Fit circuit to view">Fit</button></span>
       <span class="st" id="st" data-s="idle">Ready</span>
     </div>
@@ -304,10 +304,10 @@ function ttRender(){
   el.innerHTML=h+'</tbody></table>';
 }
 function ttSVG(T,x,y,cw,rh,C){
-  const ni=T.ins.length,no=T.outs.length,IW=34,GAP=14,TW=IW+(ni+no)*cw+GAP,top=y+28,GH=22,HH=26,H=GH+HH+T.rows.length*rh,bt=top+GH+HH,cur=T.ins.map(n=>n.val).join('');
+  const ni=T.ins.length,no=T.outs.length,IW=34,GAP=14,TW=IW+(ni+no)*cw+GAP,top=y+44,GH=22,HH=26,H=GH+HH+T.rows.length*rh,bt=top+GH+HH,cur=T.ins.map(n=>n.val).join('');
   const cx=i=>x+IW+i*cw+cw/2+(i>=ni?GAP:0);
   const tx=(X,Y,t,sz,f,w,a)=>`<text x="${X}" y="${Y}" text-anchor="${a||'middle'}" font-size="${sz}" font-weight="${w||400}" fill="${f}">${t}</text>`;
-  let s=tx(x,y+14,'Truth table',15,C.ink,700,'start')+tx(x+TW,y+14,`${ni} input${ni>1?'s':''} · ${T.rows.length} rows · ${no} output${no>1?'s':''}`,11,C.mut,400,'end');
+  let s=tx(x,y+14,'Truth table',15,C.ink,700,'start')+tx(x,y+31,`${ni} input${ni>1?'s':''} · ${T.rows.length} rows · ${no} output${no>1?'s':''}`,11.5,C.mut,400,'start');
   s+=`<clipPath id="tc"><rect x="${x}" y="${top}" width="${TW}" height="${H}" rx="10"/></clipPath><g clip-path="url(#tc)"><rect x="${x}" y="${top}" width="${TW}" height="${H}" fill="#fff"/><rect x="${x}" y="${top}" width="${TW}" height="${GH+HH}" fill="#eef2f6"/>`;
   s+=tx(x+IW+ni*cw/2,top+15,'Inputs',10.5,C.mut,600)+tx(x+IW+ni*cw+GAP+no*cw/2,top+15,'Outputs',10.5,'#a85a00',600)+tx(x+IW/2,top+GH+17,'#',11,C.mut,600);
   [...T.ins,...T.outs].forEach((n,i)=>s+=tx(cx(i),top+GH+17,n.name,12.5,i>=ni?'#a85a00':C.ink,700));
@@ -330,7 +330,7 @@ function exportSVG(){
   const C={ink:'#10263b',wire:'#8798aa',hi:'#f08a00',hibg:'#fff0d2',mut:'#566779'},P=32;
   let x0=1e9,y0=1e9,x1=0,y1=0;
   nodes.forEach(n=>{const[w,h]=size(n);x0=Math.min(x0,n.x);y0=Math.min(y0,n.y-20);x1=Math.max(x1,n.x+w);y1=Math.max(y1,n.y+h)});
-  const T=truth(),okT=T.rows&&T.ins.length&&T.outs.length,cw=46,rh=26,TW=okT?(T.ins.length+T.outs.length)*cw+48:0,TH=okT?T.rows.length*rh+100:0;
+  const T=truth(),okT=T.rows&&T.ins.length&&T.outs.length,cw=46,rh=26,TW=okT?(T.ins.length+T.outs.length)*cw+48:0,TH=okT?T.rows.length*rh+116:0;
   const CH=Math.round(y1-y0+2*P),W=Math.max(Math.round(x1-x0+2*P),TW+2*P),H=CH+TH;
   let s=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="Sora,'Segoe UI',Arial,sans-serif"><rect width="100%" height="100%" fill="#fff"/><g transform="translate(${P-x0},${P-y0})">`;
   wires.forEach((w,i)=>{const on=wdone.has(i)&&vals[w.from];s+=`<path d="${path(outP(byId(w.from)),inP(byId(w.to),w.idx))}" fill="none" stroke="${on?C.hi:C.wire}" stroke-width="3" stroke-linecap="round"/>`});
@@ -419,11 +419,18 @@ addEventListener('keydown',e=>{
 });
 setZoom(1);
 let DL=null;
-(window.claude?claude.use('downloads'):Promise.resolve(null)).then(d=>{DL=d;dlb.hidden=!d}).catch(()=>{dlb.hidden=true});
+(window.claude?claude.use('downloads'):Promise.resolve(null)).then(d=>{DL=d}).catch(()=>{});
 dlb.onclick=async()=>{
-  if(!DL||!nodes.length)return;
-  try{await DL.save({filename:'logic-circuit.svg',data:exportSVG()})}
-  catch(e){if(!e||e.code!=='declined')setSt('idle','Download unavailable')}
+  if(!nodes.length)return;
+  const data=exportSVG();
+  if(DL){
+    try{await DL.save({filename:'logic-circuit.svg',data})}
+    catch(e){if(!e||e.code!=='declined')setSt('idle','Download unavailable')}
+    return;
+  }
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([data],{type:'image/svg+xml'}));a.download='logic-circuit.svg';
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 };
 document.getElementById('run').onclick=play;
 document.getElementById('clr').onclick=()=>{ask('Clear the canvas?','All parts and wires will be removed. This cannot be undone.','Clear all').then(ok=>{if(ok){clear();reset()}})};
